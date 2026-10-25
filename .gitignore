@@ -1,0 +1,12 @@
+# ESP-IDF build output
+build/
+
+# Generated configuration
+sdkconfig.old
+dependencies.lock
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
