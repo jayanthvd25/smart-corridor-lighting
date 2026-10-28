@@ -307,28 +307,55 @@
 // }
 
 
+//PIR + LDR + LED
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
 
-#define PIR GPIO_NUM_5
-#define LDR GPIO_NUM_6
+#define PIR_PIN GPIO_NUM_4
+#define LDR_PIN GPIO_NUM_6
+#define LED_PIN GPIO_NUM_5
+
+#define DARK_LEVEL 1
 
 void app_main(void)
 {
-gpio_reset_pin(PIR);
-gpio_set_direction(PIR, GPIO_MODE_INPUT);
+    gpio_reset_pin(PIR_PIN);
+    gpio_set_direction(PIR_PIN, GPIO_MODE_INPUT);
 
-gpio_reset_pin(LDR);
-gpio_set_direction(LDR, GPIO_MODE_INPUT);
-while (1)
-{
-    int p = gpio_get_level(PIR);
-    int l = gpio_get_level(LDR);
-    printf("PIR: %d | LDR DO: %d | Dark: %d\n",
-           p, l, l == 1);
-    vTaskDelay(pdMS_TO_TICKS(500));
-}
+    gpio_reset_pin(LDR_PIN);
+    gpio_set_direction(LDR_PIN, GPIO_MODE_INPUT);
 
+    gpio_reset_pin(LED_PIN);
+    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED_PIN, 0);
+
+    printf("Smart Corridor Lighting Started\n");
+
+    while (1)
+    {
+        int pir = gpio_get_level(PIR_PIN);
+        int ldr = gpio_get_level(LDR_PIN);
+
+        int dark = (ldr == DARK_LEVEL);
+        int motion = (pir == 1);
+
+        if (dark && motion)
+        {
+            gpio_set_level(LED_PIN, 1);
+            printf("Dark + Motion detected -> LED ON\n");
+        }
+        else
+        {
+            gpio_set_level(LED_PIN, 0);
+
+            if (!dark)
+                printf("Bright -> LED OFF\n");
+            else
+                printf("Dark, no motion -> LED OFF\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
 }
