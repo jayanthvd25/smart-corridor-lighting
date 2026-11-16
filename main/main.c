@@ -1,361 +1,244 @@
-// #include <stdio.h>
-// #include <stdbool.h>
-// #include <stdint.h>
-// #include "freertos/FreeRTOS.h"
-// #include "freertos/task.h"
-// #include "driver/gpio.h"
-// #include "esp_timer.h"
-
-// #define LED GPIO_NUM_4
-// #define PIR GPIO_NUM_5
-// #define LDR GPIO_NUM_6
-
-// #define LIGHT_ON_LEVEL 1
-// #define DARK_LEVEL 1
-
-// #define ON_TIME_US (120LL * 1000000LL)
-
-// static int sec = 18 * 3600;
-// static int64_t last_clock_us;
-// static int64_t last_motion_us = -1;
-
-// static void update_clock(void)
-// {
-//     int64_t now = esp_timer_get_time();
-//     int64_t elapsed = (now - last_clock_us) / 1000000LL;
-
-//     if (elapsed > 0) {
-//         sec = (sec + (int)(elapsed % 86400)) % 86400;
-//         last_clock_us += elapsed * 1000000LL;
-//     }
-// }
-
-// static bool active_hours(void)
-// {
-//     int h = sec / 3600;
-//     return h >= 18 || h < 5;
-// }
-
-// static void print_time(void)
-// {
-//     int h = sec / 3600;
-//     int m = (sec % 3600) / 60;
-//     int s = sec % 60;
-
-//     printf("Time: %02d:%02d:%02d | ", h, m, s);
-// }
-
-// void app_main(void)
-// {
-//     gpio_reset_pin(LED);
-//     gpio_set_direction(LED, GPIO_MODE_OUTPUT);
-//     gpio_set_level(LED, 0);
-
-//     gpio_reset_pin(PIR);
-//     gpio_set_direction(PIR, GPIO_MODE_INPUT);
-
-//     gpio_reset_pin(LDR);
-//     gpio_set_direction(LDR, GPIO_MODE_INPUT);
-
-//     last_clock_us = esp_timer_get_time();
-
-//     printf("\nSmart Corridor Lighting System Started\n");
-//     printf("Initial software time: 18:00:00\n");
-
-//     while (1)
-//     {
-//         update_clock();
-
-//         int p = gpio_get_level(PIR);
-//         int l = gpio_get_level(LDR);
-//         int64_t now = esp_timer_get_time();
-
-//         bool night = active_hours();
-//         bool dark = (l == DARK_LEVEL);
-//         bool motion = (p == 1);
-
-//         if (night && dark && motion) {
-//             last_motion_us = now;
-//         }
-
-//         bool timer_active =
-//             last_motion_us >= 0 &&
-//             (now - last_motion_us) < ON_TIME_US;
-
-//         bool light_on = night && dark && timer_active;
-
-//         gpio_set_level(LED, light_on ? LIGHT_ON_LEVEL : !LIGHT_ON_LEVEL);
-
-//         print_time();
-//         printf("LDR DO: %d | PIR: %d | Night: %d | Dark: %d | Light: %s\n",
-//                l, p, night, dark, light_on ? "ON" : "OFF");
-
-//         vTaskDelay(pdMS_TO_TICKS(500));
-//     }
-// }
-
-// #include <stdio.h>
-// #include <stdbool.h>
-// #include <stdint.h>
-// #include "freertos/FreeRTOS.h"
-// #include "freertos/task.h"
-// #include "driver/gpio.h"
-// #include "esp_timer.h"
-
-// #define LED GPIO_NUM_4
-// #define PIR GPIO_NUM_5
-// #define LDR GPIO_NUM_6
-
-// // Adjust to match your hardware
-// #define LIGHT_ON_LEVEL 1   // LED/relay output level that turns the light ON
-// #define DARK_LEVEL     1   // LDR module DO level when it is dark
-
-// #define ON_TIME_US      (120LL * 1000000LL)  // light stays on 2 min after last motion
-// #define PIR_WARMUP_US   (60LL * 1000000LL)   // ignore PIR for 60 s after boot
-// #define LOG_PERIOD_US   (5LL * 1000000LL)    // heartbeat log every 5 s
-
-// #define START_TIME_SEC  (18 * 3600)          // software clock starts at 18:00:00
-
-// static int sec = START_TIME_SEC;
-// static int64_t last_clock_us;
-
-// static void update_clock(void)
-// {
-//     int64_t now = esp_timer_get_time();
-//     int64_t elapsed = (now - last_clock_us) / 1000000LL;
-
-//     if (elapsed > 0) {
-//         sec = (sec + (int)(elapsed % 86400)) % 86400;
-//         last_clock_us += elapsed * 1000000LL;
-//     }
-// }
-
-// static bool active_hours(void)
-// {
-//     int h = sec / 3600;
-//     return h >= 18 || h < 5;   // 18:00 - 05:00
-// }
-
-// static void print_time(void)
-// {
-//     int h = sec / 3600;
-//     int m = (sec % 3600) / 60;
-//     int s = sec % 60;
-
-//     printf("Time: %02d:%02d:%02d | ", h, m, s);
-// }
-
-// void app_main(void)
-// {
-//     gpio_reset_pin(LED);
-//     gpio_set_direction(LED, GPIO_MODE_OUTPUT);
-//     gpio_set_level(LED, !LIGHT_ON_LEVEL);
-
-//     gpio_reset_pin(PIR);
-//     gpio_set_direction(PIR, GPIO_MODE_INPUT);
-
-//     gpio_reset_pin(LDR);
-//     gpio_set_direction(LDR, GPIO_MODE_INPUT);
-
-//     int64_t start_us = esp_timer_get_time();
-//     last_clock_us = start_us;
-
-//     bool light_on = false;
-//     int64_t last_motion_us = 0;
-
-//     // For change-based logging
-//     int prev_p = -1, prev_l = -1;
-//     bool prev_night = false, prev_light = false;
-//     int64_t last_log_us = 0;
-
-//     printf("\nSmart Corridor Lighting System Started\n");
-//     printf("Initial software time: 18:00:00\n");
-//     printf("PIR warm-up: ignoring motion for %d s\n", (int)(PIR_WARMUP_US / 1000000LL));
-
-//     while (1)
-//     {
-//         update_clock();
-
-//         int p = gpio_get_level(PIR);
-//         int l = gpio_get_level(LDR);
-//         int64_t now = esp_timer_get_time();
-
-//         bool night  = active_hours();
-//         bool dark   = (l == DARK_LEVEL);
-//         bool warmed = (now - start_us) >= PIR_WARMUP_US;
-//         bool motion = (p == 1) && warmed;
-
-//         if (!light_on) {
-//             // Turn on only when it's night, dark, and motion is detected
-//             if (night && dark && motion) {
-//                 light_on = true;
-//                 last_motion_us = now;
-//             }
-//         } else {
-//             // While ON: ignore the LDR (the LED lights the sensor itself).
-//             // Motion retriggers the timer; timeout or end of night turns it off.
-//             if (motion) {
-//                 last_motion_us = now;
-//             }
-//             if (!night || (now - last_motion_us) >= ON_TIME_US) {
-//                 light_on = false;
-//             }
-//         }
-
-//         gpio_set_level(LED, light_on ? LIGHT_ON_LEVEL : !LIGHT_ON_LEVEL);
-
-//         bool changed = (p != prev_p) || (l != prev_l) ||
-//                        (night != prev_night) || (light_on != prev_light);
-
-//         if (changed || (now - last_log_us) >= LOG_PERIOD_US) {
-//             print_time();
-//             printf("LDR DO: %d | PIR: %d | Night: %d | Dark: %d | Warmed: %d | Light: %s\n",
-//                    l, p, night, dark, warmed, light_on ? "ON" : "OFF");
-
-//             prev_p = p;
-//             prev_l = l;
-//             prev_night = night;
-//             prev_light = light_on;
-//             last_log_us = now;
-//         }
-
-//         vTaskDelay(pdMS_TO_TICKS(500));
-//     }
-// }
-
-
-// #include <stdio.h>
-// #include <stdbool.h>
-// #include <stdint.h>
-// #include "freertos/FreeRTOS.h"
-// #include "freertos/task.h"
-// #include "driver/gpio.h"
-// #include "esp_timer.h"
-
-// #define LED GPIO_NUM_4
-// #define PIR GPIO_NUM_5
-// #define LDR GPIO_NUM_6
-
-// #define LIGHT_ON_LEVEL 1
-// #define DARK_LEVEL 1
-
-// #define ON_TIME_US (120LL * 1000000LL)
-// #define PIR_WARMUP_US (60LL * 1000000LL)
-// #define LOG_PERIOD_US (5LL * 1000000LL)
-
-// void app_main(void)
-// {
-// gpio_reset_pin(LED);
-// gpio_set_direction(LED, GPIO_MODE_OUTPUT);
-// gpio_set_level(LED, !LIGHT_ON_LEVEL);
-
-// gpio_reset_pin(PIR);
-// gpio_set_direction(PIR, GPIO_MODE_INPUT);
-// gpio_reset_pin(LDR);
-// gpio_set_direction(LDR, GPIO_MODE_INPUT);
-// int64_t start_us = esp_timer_get_time();
-// bool light_on = false;
-// int64_t last_motion_us = 0;
-// int prev_p = -1, prev_l = -1;
-// bool prev_light = false;
-// int64_t last_log_us = 0;
-// printf("\nSmart Corridor Lighting System Started\n");
-// printf("PIR warm-up: ignoring motion for %d s\n",
-//        (int)(PIR_WARMUP_US / 1000000LL));
-// while (1)
-// {
-//     int p = gpio_get_level(PIR);
-//     int l = gpio_get_level(LDR);
-//     int64_t now = esp_timer_get_time();
-//     bool dark = (l == DARK_LEVEL);
-//     bool warmed = (now - start_us) >= PIR_WARMUP_US;
-//     bool motion = (p == 1) && warmed;
-//     if (!light_on)
-//     {
-//         if (dark && motion)
-//         {
-//             light_on = true;
-//             last_motion_us = now;
-//         }
-//     }
-//     else
-//     {
-//         if (motion)
-//         {
-//             last_motion_us = now;
-//         }
-//         if ((now - last_motion_us) >= ON_TIME_US)
-//         {
-//             light_on = false;
-//         }
-//     }
-//     gpio_set_level(LED, light_on ? LIGHT_ON_LEVEL : !LIGHT_ON_LEVEL);
-//     bool changed = (p != prev_p) || (l != prev_l) ||
-//                    (light_on != prev_light);
-//     if (changed || (now - last_log_us) >= LOG_PERIOD_US)
-//     {
-//         printf("LDR DO: %d | PIR: %d | Dark: %d | Warmed: %d | Light: %s\n",
-//                l, p, dark, warmed, light_on ? "ON" : "OFF");
-//         prev_p = p;
-//         prev_l = l;
-//         prev_light = light_on;
-//         last_log_us = now;
-//     }
-//     vTaskDelay(pdMS_TO_TICKS(500));
-// }
-
-// }
-
-
-//PIR + LDR + LED
 #include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 #include "driver/gpio.h"
+#include "driver/i2c_master.h"
 
-#define PIR_PIN GPIO_NUM_4
-#define LDR_PIN GPIO_NUM_6
-#define LED_PIN GPIO_NUM_5
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "esp_err.h"
 
-#define DARK_LEVEL 1
+#define SDA_PIN GPIO_NUM_4
+#define SCL_PIN GPIO_NUM_5
+
+#define PIR_PIN GPIO_NUM_6
+
+#define RELAY_1 GPIO_NUM_7
+#define RELAY_2 GPIO_NUM_8
+
+#define BH_ADDR 0x23
+
+#define DARK_LUX 50.0f
+
+#define OFF_TIME 120000000LL
+#define SETTLE_TIME 10000000LL
+
+#define RELAY_ON 0
+#define RELAY_OFF 1
+
+static const char *TAG = "CORRIDOR";
+
+static i2c_master_bus_handle_t bus;
+static i2c_master_dev_handle_t bh;
+
+static bool light_on = false;
+static bool lux_valid = false;
+
+static float lux = 0;
+
+static int64_t last_motion = 0;
+static int64_t last_lux_read = 0;
+static int64_t settle_until = 0;
+
+
+static void relay_control(bool state)
+{
+    int v = state ? RELAY_ON : RELAY_OFF;
+
+    gpio_set_level(RELAY_1, v);
+    gpio_set_level(RELAY_2, v);
+
+    light_on = state;
+
+    if (state)
+    {
+        ESP_LOGI(TAG, "CORRIDOR LIGHTS ON");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "CORRIDOR LIGHTS OFF");
+
+        settle_until = esp_timer_get_time() + SETTLE_TIME;
+    }
+}
+
+
+static void gpio_init_all(void)
+{
+    gpio_config_t out = {
+        .pin_bit_mask = (1ULL << RELAY_1) | (1ULL << RELAY_2),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+
+    ESP_ERROR_CHECK(gpio_config(&out));
+
+    gpio_set_level(RELAY_1, RELAY_OFF);
+    gpio_set_level(RELAY_2, RELAY_OFF);
+
+    gpio_config_t in = {
+        .pin_bit_mask = (1ULL << PIR_PIN),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+
+    ESP_ERROR_CHECK(gpio_config(&in));
+}
+
+
+static void i2c_init_all(void)
+{
+    i2c_master_bus_config_t cfg = {
+        .i2c_port = I2C_NUM_0,
+        .sda_io_num = SDA_PIN,
+        .scl_io_num = SCL_PIN,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true
+    };
+
+    ESP_ERROR_CHECK(i2c_new_master_bus(&cfg, &bus));
+
+    i2c_device_config_t dev = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = BH_ADDR,
+        .scl_speed_hz = 100000
+    };
+
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(bus, &dev, &bh));
+
+    uint8_t cmd = 0x10;
+
+    ESP_ERROR_CHECK(
+        i2c_master_transmit(bh, &cmd, 1, 1000)
+    );
+
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    ESP_LOGI(TAG, "BH1750 INITIALIZED");
+}
+
+
+static float read_lux(void)
+{
+    uint8_t data[2];
+
+    esp_err_t err = i2c_master_receive(
+        bh,
+        data,
+        2,
+        1000
+    );
+
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "BH1750 READ FAILED");
+        lux_valid = false;
+        return 0;
+    }
+
+    uint16_t raw = ((uint16_t)data[0] << 8) | data[1];
+
+    lux_valid = true;
+
+    return raw / 1.2f;
+}
+
+
+static void sensor_task(void *arg)
+{
+    while (1)
+    {
+        int64_t now = esp_timer_get_time();
+
+        // Read ambient light only when lights are OFF.
+
+        if (!light_on && now >= settle_until)
+        {
+            if (now - last_lux_read >= 1000000LL)
+            {
+                lux = read_lux();
+
+                last_lux_read = now;
+
+                if (lux_valid)
+                {
+                    ESP_LOGI(TAG, "Ambient Light: %.2f lux", lux);
+                }
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+
+static void lighting_task(void *arg)
+{
+    while (1)
+    {
+        int motion = gpio_get_level(PIR_PIN);
+
+        int64_t now = esp_timer_get_time();
+
+        if (motion)
+        {
+            last_motion = now;
+
+            if (!light_on && lux_valid && lux < DARK_LUX)
+            {
+                relay_control(true);
+            }
+        }
+
+        if (light_on)
+        {
+            if (now - last_motion >= OFF_TIME)
+            {
+                relay_control(false);
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
 
 void app_main(void)
 {
-    gpio_reset_pin(PIR_PIN);
-    gpio_set_direction(PIR_PIN, GPIO_MODE_INPUT);
+    ESP_LOGI(TAG, "SMART CORRIDOR LIGHTING SYSTEM");
 
-    gpio_reset_pin(LDR_PIN);
-    gpio_set_direction(LDR_PIN, GPIO_MODE_INPUT);
+    gpio_init_all();
 
-    gpio_reset_pin(LED_PIN);
-    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(LED_PIN, 0);
+    i2c_init_all();
 
-    printf("Smart Corridor Lighting Started\n");
+    settle_until = esp_timer_get_time();
 
-    while (1)
-    {
-        int pir = gpio_get_level(PIR_PIN);
-        int ldr = gpio_get_level(LDR_PIN);
+    xTaskCreate(
+        sensor_task,
+        "sensor_task",
+        4096,
+        NULL,
+        5,
+        NULL
+    );
 
-        int dark = (ldr == DARK_LEVEL);
-        int motion = (pir == 1);
+    xTaskCreate(
+        lighting_task,
+        "lighting_task",
+        4096,
+        NULL,
+        5,
+        NULL
+    );
 
-        if (dark && motion)
-        {
-            gpio_set_level(LED_PIN, 1);
-            printf("Dark + Motion detected -> LED ON\n");
-        }
-        else
-        {
-            gpio_set_level(LED_PIN, 0);
-
-            if (!dark)
-                printf("Bright -> LED OFF\n");
-            else
-                printf("Dark, no motion -> LED OFF\n");
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
+    ESP_LOGI(TAG, "SYSTEM STARTED");
 }
