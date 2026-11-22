@@ -243,22 +243,104 @@
 //     ESP_LOGI(TAG, "SYSTEM STARTED");
 // }
 
+
+//BH1750 TESTING 
+
+
+// #include <stdio.h>
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/task.h"
+// #include "driver/i2c_master.h"
+// #include "esp_log.h"
+
+// #define SDA_PIN 8
+// #define SCL_PIN 9
+
+// #define BH1750_ADDR 0x23
+
+// void app_main(void)
+// {
+//     i2c_master_bus_handle_t bus;
+//     i2c_master_dev_handle_t sensor;
+
+//     i2c_master_bus_config_t bus_config = {
+//         .i2c_port = I2C_NUM_0,
+//         .sda_io_num = SDA_PIN,
+//         .scl_io_num = SCL_PIN,
+//         .clk_source = I2C_CLK_SRC_DEFAULT,
+//         .glitch_ignore_cnt = 7,
+//         .flags.enable_internal_pullup = true
+//     };
+
+//     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus));
+
+//     i2c_device_config_t dev_config = {
+//         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+//         .device_address = BH1750_ADDR,
+//         .scl_speed_hz = 100000
+//     };
+
+//     ESP_ERROR_CHECK(i2c_master_bus_add_device(bus, &dev_config, &sensor));
+
+//     // Power ON
+//     uint8_t cmd = 0x01;
+//     ESP_ERROR_CHECK(i2c_master_transmit(sensor, &cmd, 1, -1));
+
+//     vTaskDelay(pdMS_TO_TICKS(10));
+
+//     // Continuous high-resolution mode
+//     cmd = 0x10;
+//     ESP_ERROR_CHECK(i2c_master_transmit(sensor, &cmd, 1, -1));
+
+//     while (1)
+//     {
+//         uint8_t data[2];
+
+//         esp_err_t ret = i2c_master_receive(sensor, data, 2, -1);
+
+//         if (ret == ESP_OK)
+//         {
+//             int raw = (data[0] << 8) | data[1];
+
+//             float lux = raw / 1.2;
+
+//             printf("Light Intensity: %.2f Lux\n", lux);
+//         }
+//         else
+//         {
+//             printf("Sensor reading failed!\n");
+//         }
+
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//     }
+// }
+
+
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/i2c_master.h"
+#include "driver/gpio.h"
 #include "esp_log.h"
 
 #define SDA_PIN 8
 #define SCL_PIN 9
 
+#define PIR_PIN 5
+#define LED_PIN 4
+
 #define BH1750_ADDR 0x23
+
+#define LUX_THRESHOLD 50.0
+#define ON_TIME 120000
 
 void app_main(void)
 {
     i2c_master_bus_handle_t bus;
     i2c_master_dev_handle_t sensor;
 
+    // Configure I2C
     i2c_master_bus_config_t bus_config = {
         .i2c_port = I2C_NUM_0,
         .sda_io_num = SDA_PIN,
@@ -278,15 +360,28 @@ void app_main(void)
 
     ESP_ERROR_CHECK(i2c_master_bus_add_device(bus, &dev_config, &sensor));
 
-    // Power ON
+    // Configure PIR and LED
+    gpio_reset_pin(PIR_PIN);
+    gpio_set_direction(PIR_PIN, GPIO_MODE_INPUT);
+
+    gpio_reset_pin(LED_PIN);
+    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
+
+    gpio_set_level(LED_PIN, 0);
+
+    // Initialize BH1750
     uint8_t cmd = 0x01;
     ESP_ERROR_CHECK(i2c_master_transmit(sensor, &cmd, 1, -1));
 
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    // Continuous high-resolution mode
     cmd = 0x10;
     ESP_ERROR_CHECK(i2c_master_transmit(sensor, &cmd, 1, -1));
+
+    printf("Smart Corridor Lighting Started\n");
+
+    TickType_t last_motion = 0;
+    int led_state = 0;
 
     while (1)
     {
@@ -300,11 +395,34 @@ void app_main(void)
 
             float lux = raw / 1.2;
 
-            printf("Light Intensity: %.2f Lux\n", lux);
+            int motion = gpio_get_level(PIR_PIN);
+
+            printf("Lux: %.2f | Motion: %d\n", lux, motion);
+
+            if (lux < LUX_THRESHOLD && motion == 1)
+            {
+                last_motion = xTaskGetTickCount();
+            }
+
+            if (lux < LUX_THRESHOLD &&
+                (xTaskGetTickCount() - last_motion) < pdMS_TO_TICKS(ON_TIME) &&
+                last_motion != 0)
+            {
+                gpio_set_level(LED_PIN, 1);
+                led_state = 1;
+            }
+            else
+            {
+                gpio_set_level(LED_PIN, 0);
+                led_state = 0;
+            }
+
+            printf("LED: %s\n", led_state ? "ON" : "OFF");
         }
         else
         {
-            printf("Sensor reading failed!\n");
+            printf("BH1750 reading failed!\n");
+            gpio_set_level(LED_PIN, 0);
         }
 
         vTaskDelay(pdMS_TO_TICKS(1000));
