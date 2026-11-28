@@ -431,39 +431,267 @@
 
 //PIR TESTING
 
+// #include <stdio.h>
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/task.h"
+// #include "driver/gpio.h"
+
+// #define PIR_PIN GPIO_NUM_1
+
+// void app_main(void)
+// {
+//     gpio_reset_pin(PIR_PIN);
+//     gpio_set_direction(PIR_PIN, GPIO_MODE_INPUT);
+
+//     printf("\nPIR Sensor Initializing...\n");
+
+//     vTaskDelay(pdMS_TO_TICKS(60000));
+
+//     printf("\nPIR Sensor Ready!\n");
+
+//     while (1)
+//     {
+//         int state = gpio_get_level(PIR_PIN);
+
+//         if (state == 1)
+//         {
+//             printf("PIR STATUS: HIGH | Motion Detected\n");
+//         }
+//         else
+//         {
+//             printf("PIR STATUS: LOW | No Motion\n");
+//         }
+
+//         vTaskDelay(pdMS_TO_TICKS(500));
+//     }
+// }
+
+//LDR TESTING FINAL 
+
+
+// #include <stdio.h>
+// #include <stdint.h>
+
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/task.h"
+
+// #include "driver/i2c_master.h"
+
+// #include "esp_log.h"
+// #include "esp_err.h"
+
+// #define I2C_MASTER_SCL_IO GPIO_NUM_4
+// #define I2C_MASTER_SDA_IO GPIO_NUM_5
+
+// #define I2C_MASTER_NUM I2C_NUM_0
+// #define I2C_MASTER_FREQ_HZ 100000
+
+// #define BH1750_ADDR 0x23
+
+// static const char *TAG = "BH1750";
+
+// void app_main(void)
+// {
+//     i2c_master_bus_handle_t bus_handle;
+//     i2c_master_dev_handle_t dev_handle;
+
+//     // I2C Bus Configuration
+//     i2c_master_bus_config_t bus_config = {
+//         .i2c_port = I2C_MASTER_NUM,
+//         .sda_io_num = I2C_MASTER_SDA_IO,
+//         .scl_io_num = I2C_MASTER_SCL_IO,
+//         .clk_source = I2C_CLK_SRC_DEFAULT,
+//         .glitch_ignore_cnt = 7,
+//         .flags.enable_internal_pullup = true,
+//     };
+
+//     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
+
+//     // BH1750 Configuration
+//     i2c_device_config_t dev_config = {
+//         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+//         .device_address = BH1750_ADDR,
+//         .scl_speed_hz = I2C_MASTER_FREQ_HZ,
+//     };
+
+//     ESP_ERROR_CHECK(
+//         i2c_master_bus_add_device(bus_handle, &dev_config, &dev_handle)
+//     );
+
+//     ESP_LOGI(TAG, "I2C initialized");
+
+//     // Check Sensor Connection
+//     esp_err_t ret = i2c_master_probe(bus_handle, BH1750_ADDR, 1000);
+
+//     if (ret != ESP_OK) {
+//         ESP_LOGE(TAG, "BH1750 NOT DETECTED!");
+//         return;
+//     }
+
+//     ESP_LOGI(TAG, "BH1750 detected successfully!");
+
+//     // Power ON
+//     uint8_t command = 0x01;
+
+//     ESP_ERROR_CHECK(
+//         i2c_master_transmit(dev_handle, &command, 1, 1000)
+//     );
+
+//     // Continuous High Resolution Mode
+//     command = 0x10;
+
+//     ESP_ERROR_CHECK(
+//         i2c_master_transmit(dev_handle, &command, 1, 1000)
+//     );
+
+//     ESP_LOGI(TAG, "Starting light measurement...");
+
+//     while (1)
+//     {
+//         uint8_t data[2];
+
+//         vTaskDelay(pdMS_TO_TICKS(200));
+
+//         ret = i2c_master_receive(dev_handle, data, 2, 1000);
+
+//         if (ret == ESP_OK)
+//         {
+//             uint16_t raw_value =
+//                 ((uint16_t)data[0] << 8) | data[1];
+
+//             float lux = raw_value / 1.2f;
+
+//             ESP_LOGI(TAG, "Raw: %u | Light Intensity: %.2f lux",
+//                      raw_value, lux);
+//         }
+//         else
+//         {
+//             ESP_LOGE(TAG, "Reading failed: %s", esp_err_to_name(ret));
+//         }
+
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//     }
+// }
+
+//PIR FINAL
+// #include <stdio.h>
+
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/task.h"
+
+// #include "driver/gpio.h"
+
+// #include "esp_log.h"
+// #include "esp_err.h"
+
+// #define PIR_GPIO GPIO_NUM_1
+
+// static const char *TAG = "PIR_SENSOR";
+
+// void app_main(void)
+// {
+//     // Configure PIR GPIO
+//     gpio_config_t pir_config = {
+//         .pin_bit_mask = (1ULL << PIR_GPIO),
+//         .mode = GPIO_MODE_INPUT,
+//         .pull_up_en = GPIO_PULLUP_DISABLE,
+//         .pull_down_en = GPIO_PULLDOWN_DISABLE,
+//         .intr_type = GPIO_INTR_DISABLE
+//     };
+
+//     ESP_ERROR_CHECK(gpio_config(&pir_config));
+
+//     ESP_LOGI(TAG, "PIR Sensor Initialized");
+//     ESP_LOGI(TAG, "Waiting for sensor stabilization...");
+
+//     // Allow PIR to stabilize
+//     vTaskDelay(pdMS_TO_TICKS(30000));
+
+//     ESP_LOGI(TAG, "PIR Sensor Ready!");
+
+//     while (1)
+//     {
+//         int motion = gpio_get_level(PIR_GPIO);
+
+//         if (motion == 1)
+//         {
+//             ESP_LOGI(TAG, "MOTION DETECTED");
+//         }
+//         else
+//         {
+//             ESP_LOGI(TAG, "NO MOTION");
+//         }
+
+//         vTaskDelay(pdMS_TO_TICKS(500));
+//     }
+// }
+
+//RELAY FINAL TESTING 
+
 #include <stdio.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 #include "driver/gpio.h"
 
-#define PIR_PIN GPIO_NUM_1
+#include "esp_log.h"
+#include "esp_err.h"
+
+// Relay GPIO pins
+#define RELAY1_GPIO GPIO_NUM_10
+#define RELAY2_GPIO GPIO_NUM_11
+
+// Active LOW relay logic
+#define RELAY_ON  0
+#define RELAY_OFF 1
+
+static const char *TAG = "RELAY_TEST";
 
 void app_main(void)
 {
-    gpio_reset_pin(PIR_PIN);
-    gpio_set_direction(PIR_PIN, GPIO_MODE_INPUT);
+    // Configure relay GPIO pins as outputs
+    gpio_config_t relay_config = {
+        .pin_bit_mask = (1ULL << RELAY1_GPIO) |
+                        (1ULL << RELAY2_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
 
-    printf("\nPIR Sensor Initializing...\n");
+    ESP_ERROR_CHECK(gpio_config(&relay_config));
 
-    vTaskDelay(pdMS_TO_TICKS(60000));
+    // Initially turn OFF both relays
+    ESP_ERROR_CHECK(gpio_set_level(RELAY1_GPIO, RELAY_OFF));
+    ESP_ERROR_CHECK(gpio_set_level(RELAY2_GPIO, RELAY_OFF));
 
-    printf("\nPIR Sensor Ready!\n");
+    ESP_LOGI(TAG, "2-Channel Relay Test Started");
 
     while (1)
     {
-        int state = gpio_get_level(PIR_PIN);
+        // STEP 1: Relay 1 ON
+        ESP_LOGI(TAG, "Relay 1 ON | Relay 2 OFF");
 
-        if (state == 1)
-        {
-            printf("PIR STATUS: HIGH | Motion Detected\n");
-        }
-        else
-        {
-            printf("PIR STATUS: LOW | No Motion\n");
-        }
+        gpio_set_level(RELAY1_GPIO, RELAY_ON);
+        gpio_set_level(RELAY2_GPIO, RELAY_OFF);
 
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(3000));
+
+        // STEP 2: Relay 2 ON
+        ESP_LOGI(TAG, "Relay 1 OFF | Relay 2 ON");
+
+        gpio_set_level(RELAY1_GPIO, RELAY_OFF);
+        gpio_set_level(RELAY2_GPIO, RELAY_ON);
+
+        vTaskDelay(pdMS_TO_TICKS(3000));
+
+        // STEP 3: Both relays OFF
+        ESP_LOGI(TAG, "Both Relays OFF");
+
+        gpio_set_level(RELAY1_GPIO, RELAY_OFF);
+        gpio_set_level(RELAY2_GPIO, RELAY_OFF);
+
+        vTaskDelay(pdMS_TO_TICKS(3000));
     }
 }
-
-
